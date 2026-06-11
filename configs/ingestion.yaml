@@ -1,0 +1,211 @@
+# NOESIS Knowledge Ingestion
+# Sources, schedules, priorities, and chunking rules.
+
+# Global ingestion settings
+global:
+  embed_batch_size: 64
+  chunk_size_tokens: 512
+  chunk_overlap_tokens: 64
+  parent_chunk_size_tokens: 2048   # parent-child retrieval
+  semantic_chunking: true           # boundary detection via embedding similarity
+  dedup_threshold: 0.97             # cosine similarity above this = skip
+  rate_limit_qps: 2                 # global polite-crawler default
+
+# Source registry
+sources:
+  arxiv:
+    enabled: true
+    schedule: daily
+    categories: [cs.LG, cs.AI, cs.CL, cs.CV, stat.ML, cs.NE, cs.IR]
+    bootstrap_days: 365             # backfill last year on first run
+    priority_authors:
+      - Lilian Weng
+      - Andrej Karpathy
+      - Sebastian Raschka
+      - Jeff Dean
+      - Noam Shazeer
+      - Ilya Sutskever
+      - Yann LeCun
+      - Yoshua Bengio
+
+  github:
+    enabled: true
+    schedule: 6h
+    watch_repos:
+      # === Python ML stack (training / fine-tuning / serving) ===
+      - vllm-project/vllm
+      - unslothai/unsloth
+      - huggingface/transformers
+      - huggingface/trl
+      - huggingface/peft
+      - huggingface/accelerate
+      - huggingface/datasets
+      - microsoft/DeepSpeed
+      - pytorch/pytorch
+      - pytorch/torchtitan
+      - openai/triton
+      - meta-llama/llama-stack
+      - QwenLM/Qwen3
+      - deepseek-ai/DeepSeek-V3
+      - karpathy/nanoGPT
+      - karpathy/llm.c
+      - EleutherAI/gpt-neox
+      - state-spaces/mamba
+      - flashinfer-ai/flashinfer
+      - NVIDIA/Megatron-LM
+      - NVIDIA/TensorRT-LLM
+      # === Rust ML / inference / data stack ===
+      - huggingface/text-embeddings-inference     # Rust — what NOESIS uses for TEI
+      - huggingface/text-generation-inference     # Rust — TGI server
+      - huggingface/tokenizers                    # Rust — the tokenizer everyone uses
+      - huggingface/candle                        # Rust — pure-Rust deep learning
+      - qdrant/qdrant                             # Rust — vector DB NOESIS uses
+      - tracel-ai/burn                            # Rust — deep learning framework
+      - EricLBuehler/mistral.rs                   # Rust LLM inference
+      - 0xPlaygrounds/rig                         # Rust LLM orchestration (Rust LangChain)
+      - pola-rs/polars                            # Rust dataframes (Python bindings)
+      - ggerganov/llama.cpp                       # C++ but seminal
+      # === Rust core ecosystem (idiom + systems patterns) ===
+      - rust-lang/rust
+      - rust-lang/cargo
+      - tokio-rs/tokio                            # async runtime — ubiquitous
+      - tokio-rs/axum                             # async web framework
+      - serde-rs/serde
+      - dtolnay/anyhow                            # error handling idiom
+      - rayon-rs/rayon                            # parallel iterators
+      - rust-lang/rustlings                       # learning idioms
+      - rust-lang/book                            # the Rust book
+      # === Python systems / advanced patterns ===
+      - python/cpython                            # Python internals
+      - python/typeshed                           # type stubs
+      - tiangolo/fastapi                          # async Python web idioms
+      - pydantic/pydantic                         # modern Python validation
+      - pallets/flask
+      - encode/httpx
+
+  reddit:
+    enabled: true
+    schedule: 12h
+    subreddits:
+      - LocalLLaMA
+      - MachineLearning
+      - artificial
+      - LangChain
+      - StableDiffusion
+      - singularity
+      - rust              # Rust ecosystem
+      - learnrust         # idiomatic Rust answers
+      - Python            # Python ecosystem
+      - learnpython
+    min_score: 50
+    top_window: week
+
+  hackernews:
+    enabled: true
+    schedule: 12h
+    min_points: 100
+    keyword_filter:
+      - ai
+      - llm
+      - ml
+      - transformer
+      - fine-tun
+      - rag
+      - embedding
+      - gpu
+      - cuda
+      - agent
+      - rust
+      - python
+      - tokio
+      - async
+      - performance
+
+  rss:
+    enabled: true
+    schedule: 6h
+    feeds:
+      # === AI / ML research blogs ===
+      - https://lilianweng.github.io/index.xml
+      - https://magazine.sebastianraschka.com/feed
+      - https://karpathy.github.io/feed.xml
+      - https://www.anthropic.com/news/rss.xml
+      - https://huggingface.co/blog/feed.xml
+      - https://blog.research.google/atom.xml
+      - https://eleuther.ai/feed.xml
+      - https://jalammar.github.io/feed.xml
+      - https://www.interconnects.ai/feed
+      - https://blog.vllm.ai/feed.xml
+      # === Rust ecosystem ===
+      - https://this-week-in-rust.org/rss.xml      # the Rust weekly digest
+      - https://blog.rust-lang.org/feed.xml        # official Rust blog
+      - https://blog.tokio.rs/index.xml            # Tokio (async runtime)
+      - https://without.boats/index.xml            # Boats — async Rust deep dives
+      - https://fasterthanli.me/index.xml          # Amos — Rust by example, idiomatic
+      - https://matklad.github.io/feed.xml         # matklad — compilers, dev tools
+      - https://blog.burntsushi.net/index.xml      # BurntSushi (ripgrep author)
+      - https://blog.guillaume-gomez.fr/feed.rss   # rustdoc / sysinfo author
+      # === Advanced Python ===
+      - https://snarky.ca/feed/                    # Brett Cannon (CPython core)
+      - https://lukasz.langa.pl/index.xml          # Łukasz Langa (Python core)
+      - https://faster-cpython.readthedocs.io/atom.xml
+
+  youtube:
+    enabled: true
+    schedule: weekly
+    channels:
+      - UCWN3xxRkmTPmbKwht9FuE5A    # Andrej Karpathy
+      - UCSHZKyawb77ixDdsGog4iWA    # Lex Fridman
+      - UCYO_jab_esuFRV4b17AJtAw    # 3Blue1Brown
+      - UCfzlCWGWYyIQ0aLC5w48gBQ    # Sentdex / pythonprogramming
+      - UC_x5XG1OV2P6uZZ5FSM9Ttw    # Google Developers (TF/JAX)
+    extract_transcripts: true
+
+  books:
+    enabled: true
+    schedule: on_demand
+    directories:
+      - ~/Books/AI
+      - ~/Books/ML
+      - ~/Books/Math
+    formats: [pdf, epub, mobi]
+    priority_titles:
+      - Deep Learning (Goodfellow)
+      - Pattern Recognition and Machine Learning (Bishop)
+      - The Elements of Statistical Learning (Hastie)
+      - Mathematics for Machine Learning (Deisenroth)
+      - Speech and Language Processing (Jurafsky)
+      - Introduction to Information Retrieval (Manning)
+      - Reinforcement Learning (Sutton & Barto)
+      - Dive into Deep Learning (d2l.ai)
+
+  conferences:
+    enabled: true
+    schedule: yearly
+    proceedings:
+      - NeurIPS
+      - ICML
+      - ICLR
+      - ACL
+      - EMNLP
+      - AAAI
+      - CVPR
+      - COLM
+      - TMLR
+
+  huggingface:
+    enabled: true
+    schedule: 6h
+    track: [trending_models, new_papers, daily_papers]
+
+# Priority weighting — used for retrieval scoring
+priority_weights:
+  arxiv: 1.0
+  github: 0.8
+  rss: 0.9
+  books: 1.0
+  conferences: 1.0
+  youtube: 0.7
+  reddit: 0.5
+  hackernews: 0.5
+  huggingface: 0.9

@@ -1,0 +1,98 @@
+# NOESIS Dream Cycle Configuration
+# Nightly self-improvement loop. Read with care — these settings control whether and how the
+# model rewrites its own weights.
+
+schedule:
+  trigger: cron                    # cron | idle | manual
+  cron: "0 2 * * *"                # 02:00 nightly
+  idle_threshold_minutes: 120      # if trigger=idle, wait until N min of no queries
+  max_duration_minutes: 360        # hard ceiling: 6h
+
+phases:
+  # NREM: consolidate episodic → semantic
+  nrem:
+    enabled: true
+    episodic_window_days: 7
+    extraction_model: synthesizer.primary
+    min_confidence: 0.75
+    write_to: semantic
+
+  # REM: generate hypothetical scenarios
+  rem:
+    enabled: true
+    n_scenarios: 200
+    creativity_temperature: 1.1
+    constrain_to_domain: true      # stay within AI/ML topics
+
+  # Synthesis: STaR-style Q&A generation
+  synthesis:
+    enabled: true
+    n_qa_pairs: 1000               # generate per cycle
+    sources: [semantic, episodic]
+    reasoning_required: true       # must include chain-of-thought
+    diversity_sampling: true
+
+  # Filter: judge model scores synthetic pairs
+  filter:
+    enabled: true
+    judge_model: judge.primary
+    keep_top_pct: 10               # keep top 10% by score
+    min_score: 0.8
+    dedup: true
+
+  # Train: Unsloth LoRA fine-tune
+  train:
+    enabled: true
+    target_model: reasoner.primary
+    method: lora                   # lora | dora | qlora
+    rank: 32
+    alpha: 64
+    dropout: 0.05
+    target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+    learning_rate: 1e-4
+    epochs: 1
+    batch_size: 4
+    gradient_accumulation: 8
+    warmup_ratio: 0.03
+    optimizer: adamw_8bit
+    save_path: data/checkpoints/dream_adapters
+
+  # Eval: holdout regression check
+  eval:
+    enabled: true
+    holdout_path: data/holdout/ai_engineering_bench.jsonl
+    metrics: [accuracy, faithfulness, calibration]
+    benchmarks:
+      - mmlu_stem_subset
+      - gsm8k
+      - humaneval
+      - ai_engineering_custom        # custom AI eng benchmark
+    rollback_on_regression_pct: 1.0  # rollback if any metric drops > 1%
+
+  # EWC: Elastic Weight Consolidation — prevent catastrophic forgetting
+  ewc:
+    enabled: true
+    fisher_samples: 500              # samples to estimate Fisher info matrix
+    importance_lambda: 1e3           # EWC regularization strength
+    reference_data: data/ewc_anchor.jsonl
+
+  # Merge: apply adapter or keep
+  merge:
+    enabled: true
+    require_eval_pass: true
+    require_human_approval: false    # set true for production safety
+    audit_log: data/audit/dream_merges.jsonl
+
+# Safety controls
+safety:
+  max_consecutive_merges: 7          # force human review after 7 auto-merges
+  refusal_drift_threshold: 0.15      # if SAE-monitored refusal direction shifts > 15%, halt
+  benchmark_regression_halt: true    # halt all dream cycles if benchmark drops detected
+  config_lock: true                  # constitution cannot be modified by dream cycle
+
+# Observability
+observability:
+  metrics_to_grafana: true
+  emit_audit_trace: true
+  alert_on_anomaly: true
+  retention_days: 365

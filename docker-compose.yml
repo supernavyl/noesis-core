@@ -1,0 +1,158 @@
+services:
+
+  qdrant:
+    image: qdrant/qdrant:v1.18.0
+    container_name: noesis-qdrant
+    restart: unless-stopped
+    ports:
+      - "6433:6333"     # REST  (host:container — remapped to avoid emily-qdrant)
+      - "6434:6334"     # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__SERVICE__ENABLE_TLS: "false"
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: noesis-postgres
+    restart: unless-stopped
+    ports:
+      - "5532:5432"     # host:container — remapped, 5432 is busy
+    environment:
+      POSTGRES_USER: noesis
+      POSTGRES_PASSWORD: noesis_dev_only
+      POSTGRES_DB: noesis
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U noesis -d noesis"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: noesis-grafana
+    restart: unless-stopped
+    ports:
+      - "3002:3000"     # remapped — 3001 may collide
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+  prometheus:
+    image: prom/prometheus:v3.0.0
+    container_name: noesis-prometheus
+    restart: unless-stopped
+    ports:
+      - "9091:9090"     # remapped — 9090 collides with emily-prometheus
+    volumes:
+      - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+
+  # vLLM serving the reasoner on the 4090 (device 0)
+  # Default: Huihui-Qwen3.6-35B-A3B-abliterated (MoE 35B / 3B active, ~18GB FP8)
+  # Override the model via configs/models.yaml + REASONER_MODEL env var.
+  vllm-reasoner:
+    image: vllm/vllm-openai:v0.6.4
+    container_name: noesis-vllm
+    restart: unless-stopped
+    ipc: host
+    ports:
+      - "8101:8000"     # remapped from 8001
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
+      REASONER_MODEL: ${REASONER_MODEL:-huihui-ai/Huihui-Qwen3.6-35B-A3B-abliterated}
+    command:
+      - "--model=${REASONER_MODEL:-huihui-ai/Huihui-Qwen3.6-35B-A3B-abliterated}"
+      - "--quantization=fp8"
+      - "--max-model-len=65536"
+      - "--gpu-memory-utilization=0.85"
+      - "--enable-chunked-prefill"
+      - "--enable-prefix-caching"
+      - "--served-model-name=reasoner"
+      - "--api-key=local-no-auth"
+      - "--enable-auto-tool-choice"
+      - "--tool-call-parser=hermes"
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]    # 4090
+              capabilities: [gpu]
+
+  # HuggingFace Text Embeddings Inference — Qwen3-Embedding-8B on 3060 (device 1)
+  embedder:
+    image: ghcr.io/huggingface/text-embeddings-inference:86-1.9
+    container_name: noesis-embedder
+    restart: unless-stopped
+    ports:
+      - "8102:80"     # remapped from 8002 (currently in use)
+    environment:
+      MODEL_ID: Qwen/Qwen3-Embedding-8B
+      MAX_CLIENT_BATCH_SIZE: "64"
+      MAX_BATCH_TOKENS: "32768"
+      AUTO_TRUNCATE: "true"
+    volumes:
+      - hf_cache:/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["1"]    # 3060
+              capabilities: [gpu]
+
+  # HuggingFace TEI rerank — BGE-Reranker-v2-Gemma on 3060
+  reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:86-1.9
+    container_name: noesis-reranker
+    restart: unless-stopped
+    ports:
+      - "8103:80"     # remapped from 8003
+    environment:
+      MODEL_ID: BAAI/bge-reranker-v2-m3
+      MAX_CLIENT_BATCH_SIZE: "32"
+      MAX_BATCH_TOKENS: "16384"
+      AUTO_TRUNCATE: "true"
+    volumes:
+      - hf_cache:/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["1"]    # 3060
+              capabilities: [gpu]
+
+  # OpenTelemetry collector — receives traces from NOESIS, fans out to Tempo/Jaeger
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.115.0
+    container_name: noesis-otel
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector.yaml"]
+    volumes:
+      - ./configs/otel-collector.yaml:/etc/otel-collector.yaml:ro
+    ports:
+      - "4327:4317"   # OTLP gRPC — remapped
+      - "4328:4318"   # OTLP HTTP — remapped
+
+volumes:
+  qdrant_data:
+  postgres_data:
+  grafana_data:
+  prometheus_data:
+  hf_cache:

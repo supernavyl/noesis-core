@@ -1,0 +1,123 @@
+# NOESIS Model Registry
+# Slot-based — models are config-driven so the architecture stays stable as frontier OSS releases drop.
+# Active backend (verified 2026-05-11): Ollama (localhost:11434) with pre-pulled models.
+#
+# Each slot has:
+#   id        — backend-native model identifier (Ollama tag, HF repo, etc.)
+#   alt_ids   — equivalent IDs for other backends (vLLM/TEI) — used when `backend:` switches
+#
+# Switch backend by editing `noesis/core/config.py` (settings.backend) or env BACKEND=…
+
+reasoner:
+  primary:
+    id: huihui_ai/qwen3.5-abliterated:27b      # Ollama tag, already local (17 GB)
+    alt_ids:
+      vllm: huihui-ai/Huihui-Qwen3.6-35B-A3B-abliterated
+    type: dense
+    total_params: 27e9
+    vram_gb: 17
+    context: 131072
+    notes: |
+      Primary on Ollama. Abliterated Qwen3.5 27B dense. Beats the originally-planned MoE
+      on retention-style tasks; slightly slower per token. CoT-aware.
+  moe:
+    id: huihui_ai/qwen3-abliterated:30b-a3b-q4_K_M
+    alt_ids:
+      vllm: huihui-ai/Huihui-Qwen3.6-35B-A3B-abliterated
+    type: moe
+    total_params: 30e9
+    active_params: 3e9
+    vram_gb: 18
+    context: 65536
+    notes: MoE option — 3B active, fast. Q4_K_M quantization.
+  fallback:
+    id: qwen3.6:27b                             # Ollama, non-abliterated, 17 GB
+    type: dense
+    vram_gb: 17
+    notes: Non-abliterated fallback. Used only if abliterated path degrades.
+  small:
+    id: deepseek-r1:14b                         # Ollama, already local (9 GB)
+    alt_ids:
+      vllm: huihui-ai/DeepSeek-R1-0528-Qwen3-8B-abliterated
+    type: dense
+    vram_gb: 9
+    context: 65536
+    notes: Fast reasoning path, critic role. R1-distilled.
+
+coder:
+  primary:
+    id: huihui_ai/qwen3-coder-abliterated:30b   # Ollama, already local (18 GB)
+    alt_ids:
+      vllm: huihui-ai/Huihui-Qwen3-Coder-Next-abliterated
+    type: dense
+    vram_gb: 18
+    notes: Abliterated Qwen3 Coder. Hot-swap with reasoner.
+
+critic:
+  primary:
+    id: phi4-reasoning:14b                      # Ollama, already local (11 GB)
+    type: dense
+    vram_gb: 11
+    notes: Phi-4 reasoning fork for adversarial Socratic role.
+
+judge:
+  primary:
+    id: huihui_ai/qwen3-abliterated:4b          # Ollama, already local (2.5 GB)
+    type: dense
+    vram_gb: 2.5
+    notes: Cheap, fast quality scoring for dream-cycle synthetic filter.
+
+synthesizer:
+  primary:
+    id: gemma3:27b-it-qat                       # Ollama, already local (18 GB)
+    type: dense
+    vram_gb: 18
+    context: 128000
+    notes: Long-context consolidation. QAT-quantized Gemma 3.
+
+embedder:
+  primary:
+    id: qwen3-embedding:8b                      # Ollama, already local (4.7 GB)
+    alt_ids:
+      tei: Qwen/Qwen3-Embedding-8B
+    vram_gb: 5
+    dim: 4096
+    max_tokens: 32768
+    notes: Always loaded on 3060 via Ollama. Routed through /api/embed.
+
+reranker:
+  primary:
+    id: BAAI/bge-reranker-v2-m3                 # TEI (Ollama doesn't do cross-encoder rerank)
+    vram_gb: 2
+    notes: BERT-based cross-encoder. Stays in TEI container on port 8103.
+
+sparse_retriever:
+  primary:
+    id: naver/splade-v3
+    notes: Learned sparse retrieval. In-process via transformers (CPU/GPU configurable).
+
+# Routing rules — orchestrator picks per query
+routing:
+  default: reasoner.primary
+  long_context: synthesizer.primary             # > 100k tokens
+  code: coder.primary
+  fast: reasoner.small
+  critic: critic.primary
+  judge: judge.primary
+
+# Inference serving
+serving:
+  backend: ollama                               # ollama | vllm | tei (split)
+  ollama_base_url: http://localhost:11434
+  reasoner_gpu_devices: [0]                     # 4090 — Ollama auto-routes
+  embedder_gpu_devices: [1]                     # 3060
+  reranker_gpu_devices: [1]                     # 3060 (TEI container)
+  fallback_engine: llama.cpp
+  api_host: 127.0.0.1
+  api_port: 8000                                # NOESIS FastAPI
+
+# Abliteration toolkit for custom slot fills (future use)
+abliteration:
+  toolkit: OBLITERATUS
+  preserve_cot: true
+  acceptable_degradation_pct: 5

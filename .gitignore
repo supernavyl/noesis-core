@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.eggs/
+build/
+dist/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# venv
+.venv/
+venv/
+.python-version
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data — corpus, checkpoints, synthetic data are HUGE; never commit
+data/corpus/
+data/synthetic/
+data/checkpoints/
+data/episodic/
+data/audit/
+# data/holdout/ — committed (small JSONL eval set, essential for dream-cycle gating)
+data/ewc_anchor.jsonl
+data/*.db
+data/*.sqlite*
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+.docker-volumes/
+postgres_data/
+qdrant_data/
+grafana_data/
+
+# Model weights — never commit
+*.safetensors
+*.gguf
+*.bin
+*.pt
+*.pth
+*.ckpt
+
+# Notebooks output
+*-checkpoint.ipynb
