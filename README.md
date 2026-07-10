@@ -1,5 +1,7 @@
 # NOESIS
 
+[![CI](https://github.com/supernavyl/noesis-core/actions/workflows/ci.yml/badge.svg)](https://github.com/supernavyl/noesis-core/actions/workflows/ci.yml)
+
 > νόησις — "the highest form of knowing: direct apprehension of truth"
 
 A self-improving autonomous **knowledge layer** for AI engineering. Hyperquestions everything. Ingests all of AI research continuously. Dreams. Fine-tunes itself. 100% open source. Designed to remain SOTA-relevant on a 5-year horizon.
