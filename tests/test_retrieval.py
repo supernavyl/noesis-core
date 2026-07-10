@@ -148,5 +148,5 @@ def test_hybrid_retriever_skips_hyde_when_disabled() -> None:
 
     import asyncio
 
-    hits = asyncio.run(retriever.search("raw query", use_hyde=False))
+    asyncio.run(retriever.search("raw query", use_hyde=False))
     assert embedder.calls == [["raw query"]]

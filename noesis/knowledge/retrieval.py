@@ -126,7 +126,7 @@ class HybridRetriever:
         span = max_rs - min_rs if max_rs > min_rs else 1.0
 
         blended: list[tuple[dict[str, Any], float]] = []
-        for cand, rs in zip(candidates, rerank_scores):
+        for cand, rs in zip(candidates, rerank_scores, strict=False):
             norm = (rs - min_rs) / span
             prio = self._priority(cand["payload"])
             final = (1.0 - self.priority_blend) * norm + self.priority_blend * prio

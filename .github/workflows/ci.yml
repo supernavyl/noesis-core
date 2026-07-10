@@ -8,30 +8,37 @@ on:
 
 jobs:
   lint-and-test:
-    name: ruff + pytest
+    name: ruff + pytest (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
+      - uses: actions/setup-python@v5
         with:
-          version: "latest"
+          python-version: ${{ matrix.python-version }}
 
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --extra dev
+      # The full dependency set (torch, sentence-transformers, pyserini/JDK, …)
+      # is infeasible on free runners. The unit tests lazy-import those heavy
+      # modules, so CI installs only the light runtime deps needed to import and
+      # exercise the tested code paths. Live services (Qdrant/Postgres/Ollama)
+      # are gated by NOESIS_CI and never contacted here.
+      - name: Install light deps
+        run: |
+          pip install --no-deps -e .
+          pip install \
+            pytest pytest-asyncio ruff \
+            pydantic pydantic-settings pyyaml httpx orjson \
+            loguru rich typer tenacity anyio numpy qdrant-client
 
       - name: ruff check
-        run: uv run ruff check noesis/ tests/
+        run: ruff check noesis/ tests/
 
       - name: pytest
-        run: uv run pytest tests/ -v
+        run: pytest tests/ -q
         env:
-          # Tests are designed to run without live services (Qdrant/Ollama/Postgres).
-          # Any test that requires them is gated by env-var skips; this CI only
-          # exercises the unit-test surface.
           NOESIS_CI: "1"

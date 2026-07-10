@@ -148,7 +148,7 @@ class IngestionPipeline:
             "published_at": item.published_at,
         }
         points = []
-        for i, ((chunk, emb), sp) in enumerate(zip(zip(child_chunks, dense), sparse_vecs)):
+        for i, ((chunk, emb), sp) in enumerate(zip(zip(child_chunks, dense, strict=False), sparse_vecs, strict=False)):
             vector: dict = {}
             if emb is not None:
                 vector[DENSE_VECTOR_NAME] = emb

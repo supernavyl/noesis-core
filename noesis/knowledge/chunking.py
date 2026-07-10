@@ -91,7 +91,7 @@ def build_parent_chunks(child_chunks: list[Chunk], group_size: int = 4) -> list[
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=False))
     na = sum(x * x for x in a) ** 0.5
     nb = sum(y * y for y in b) ** 0.5
     return dot / (na * nb + 1e-12)
